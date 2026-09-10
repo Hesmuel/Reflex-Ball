@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reflex Training</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #050505;
+      color: white;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    #game {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+
+    /* HUD */
+
+    #hud {
+      position: absolute;
+      top: 24px;
+      left: 24px;
+      z-index: 20;
+
+      display: flex;
+      gap: 30px;
+
+      font-size: 14px;
+      color: #aaa;
+    }
+
+    .stat strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 22px;
+      color: white;
+    }
+
+    /* Bola */
+
+    #ball {
+      position: absolute;
+
+      width: 40px;
+      height: 40px;
+
+      left: 50%;
+      top: 100px;
+
+      transform: translate(-50%, -50%);
+
+      border-radius: 50%;
+
+      background: #00ff66;
+
+      box-shadow:
+        0 0 10px #00ff66,
+        0 0 30px rgba(0, 255, 102, 0.7);
+
+      z-index: 5;
+    }
+
+    /* Player */
+
+    #player {
+      position: absolute;
+
+      width: 75px;
+      height: 75px;
+
+      left: 50%;
+      top: 82%;
+
+      transform: translate(-50%, -50%);
+
+      border-radius: 50%;
+
+      background: #181818;
+
+      border: 3px solid #fff;
+
+      box-shadow:
+        0 0 10px rgba(255, 255, 255, 0.2);
+
+      z-index: 4;
+
+      transition:
+        border-color 0.08s,
+        box-shadow 0.08s,
+        transform 0.08s;
+    }
+
+    /* Bloqueio */
+
+    #player.blocking {
+      border-color: #00aaff;
+
+      box-shadow:
+        0 0 10px #00aaff,
+        0 0 30px rgba(0, 170, 255, 0.7),
+        0 0 60px rgba(0, 170, 255, 0.3);
+
+      transform: translate(-50%, -50%) scale(1.08);
+    }
+
+    #shield {
+      position: absolute;
+
+      width: 115px;
+      height: 115px;
+
+      left: 50%;
+      top: 82%;
+
+      transform: translate(-50%, -50%);
+
+      border-radius: 50%;
+
+      border: 3px solid rgba(0, 170, 255, 0);
+
+      pointer-events: none;
+
+      z-index: 3;
+
+      transition: 0.08s;
+    }
+
+    #shield.active {
+      border-color: #00aaff;
+
+      box-shadow:
+        0 0 20px rgba(0, 170, 255, 0.6),
+        inset 0 0 20px rgba(0, 170, 255, 0.15);
+    }
+
+    /* Barra de bloqueio */
+
+    #block-container {
+      position: absolute;
+
+      left: 50%;
+      top: calc(82% + 65px);
+
+      transform: translateX(-50%);
+
+      width: 160px;
+      height: 5px;
+
+      background: #222;
+
+      border-radius: 5px;
+
+      overflow: hidden;
+    }
+
+    #block-bar {
+      width: 0%;
+      height: 100%;
+
+      background: #00aaff;
+    }
+
+    /* Textos */
+
+    #message {
+      position: absolute;
+
+      left: 50%;
+      top: 50%;
+
+      transform: translate(-50%, -50%);
+
+      text-align: center;
+
+      font-size: 28px;
+      font-weight: bold;
+
+      opacity: 0;
+
+      pointer-events: none;
+
+      transition: opacity 0.15s;
+
+      z-index: 30;
+    }
+
+    #instructions {
+      position: absolute;
+
+      left: 50%;
+      bottom: 25px;
+
+      transform: translateX(-50%);
+
+      color: #666;
+
+      font-size: 13px;
+
+      text-align: center;
+    }
+
+    /* Game Over */
+
+    #gameOver {
+      position: absolute;
+
+      inset: 0;
+
+      display: none;
+      align-items: center;
+      justify-content: center;
+
+      background: rgba(0, 0, 0, 0.82);
+
+      z-index: 100;
+    }
+
+    #gameOverBox {
+      text-align: center;
+    }
+
+    #gameOverBox h1 {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    #gameOverBox p {
+      color: #aaa;
+      margin-bottom: 8px;
+    }
+
+    #restart {
+      margin-top: 25px;
+
+      padding: 12px 28px;
+
+      border: none;
+      border-radius: 8px;
+
+      background: white;
+      color: black;
+
+      font-size: 15px;
+      font-weight: bold;
+
+      cursor: pointer;
+    }
+
+    #restart:hover {
+      background: #ddd;
+    }
+
+    .success {
+      color: #00ff66;
+    }
+
+    .fail {
+      color: #ff3b3b;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="game">
+
+  <div id="hud">
+
+    <div class="stat">
+      DEFESAS
+      <strong id="score">0</strong>
+    </div>
+
+    <div class="stat">
+      VELOCIDADE
+      <strong id="speed">1.00x</strong>
+    </div>
+
+    <div class="stat">
+      MELHOR TEMPO
+      <strong id="reaction">---</strong>
+    </div>
+
+  </div>
+
+
+  <div id="ball"></div>
+
+  <div id="shield"></div>
+
+  <div id="player"></div>
+
+
+  <div id="block-container">
+    <div id="block-bar"></div>
+  </div>
+
+
+  <div id="message"></div>
+
+
+  <div id="instructions">
+    CLIQUE ESQUERDO ou pressione E para bloquear
+    <br>
+    Bloqueio ativo: 0.7s
+  </div>
+
+
+  <div id="gameOver">
+
+    <div id="gameOverBox">
+
+      <h1>VOCÊ FOI ATINGIDO</h1>
+
+      <p>
+        Defesas:
+        <strong id="finalScore">0</strong>
+      </p>
+
+      <p>
+        Velocidade final:
+        <strong id="finalSpeed">1.00x</strong>
+      </p>
+
+      <button id="restart">
+        TENTAR NOVAMENTE
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<script>
+
+const ball = document.getElementById("ball");
+const player = document.getElementById("player");
+const shield = document.getElementById("shield");
+
+const scoreElement = document.getElementById("score");
+const speedElement = document.getElementById("speed");
+const reactionElement = document.getElementById("reaction");
+
+const blockBar = document.getElementById("block-bar");
+
+const message = document.getElementById("message");
+
+const gameOverScreen = document.getElementById("gameOver");
+
+const finalScore = document.getElementById("finalScore");
+const finalSpeed = document.getElementById("finalSpeed");
+
+const restartButton = document.getElementById("restart");
+
+
+/* ============================================================
+   CONFIGURAÇÕES
+============================================================ */
+
+const BLOCK_DURATION = 700; // bloqueio ativo durante 0.7 segundos
+
+const TOTAL_COOLDOWN = 1000; // novo clique após 1 segundo
+
+const BALL_START_Y = 100;
+
+/*
+Velocidade inicial em pixels por segundo.
+
+Pode aumentar isso se quiser começar mais difícil.
+*/
+const INITIAL_SPEED = 500;
+
+/*
+Quanto a velocidade aumenta após cada defesa.
+
+0.08 = 8%
+*/
+const SPEED_INCREASE = 0.08;
+
+
+/*
+Tempo aleatório antes da bola atacar.
+*/
+const MIN_WAIT = 700;
+const MAX_WAIT = 3200;
+
+
+/* ============================================================
+   ESTADO
+============================================================ */
+
+let score = 0;
+
+let ballReturning = false;
+
+let speedMultiplier = 1;
+
+let ballY = BALL_START_Y;
+
+let ballMoving = false;
+
+let blocking = false;
+
+let inputLocked = false;
+
+let gameRunning = true;
+
+let attackTimeout = null;
+
+let blockStartTime = 0;
+
+let blockEndTimeout = null;
+
+let cooldownTimeout = null;
+
+let attackStartTime = 0;
+
+let bestReaction = null;
+
+let lastFrame = performance.now();
+
+
+/* ============================================================
+   POSICIONAMENTO
+============================================================ */
+
+function updateBallPosition() {
+
+  ball.style.top = ballY + "px";
+
+}
+
+
+function getPlayerCenterY() {
+
+  const rect = player.getBoundingClientRect();
+
+  return rect.top + rect.height / 2;
+
+}
+
+
+function getCollisionDistance() {
+
+  const ballRadius = ball.offsetHeight / 2;
+
+  const playerRadius = player.offsetHeight / 2;
+
+  return ballRadius + playerRadius;
+
+}
+
+
+/* ============================================================
+   ATAQUE
+============================================================ */
+
+function prepareAttack() {
+
+  if (!gameRunning) return;
+
+  ballMoving = false;
+
+  ballY = BALL_START_Y;
+
+  updateBallPosition();
+
+
+  /*
+  Espera aleatória para impedir o jogador
+  de prever exatamente quando a bola vai vir.
+  */
+
+  const delay =
+    Math.random() * (MAX_WAIT - MIN_WAIT)
+    + MIN_WAIT;
+
+
+  attackTimeout = setTimeout(() => {
+
+    if (!gameRunning) return;
+
+    ballMoving = true;
+
+    attackStartTime = performance.now();
+
+  }, delay);
+
+}
+
+
+/* ============================================================
+   BLOQUEIO
+============================================================ */
+
+function tryBlock() {
+
+  if (!gameRunning) return;
+
+  /*
+  Impede spam durante cooldown.
+  */
+
+  if (inputLocked) return;
+
+
+  inputLocked = true;
+  blocking = true;
+
+  blockStartTime = performance.now();
+
+
+  player.classList.add("blocking");
+  shield.classList.add("active");
+
+
+  /*
+  Finaliza os 0.7 segundos de defesa.
+  */
+
+  blockEndTimeout = setTimeout(() => {
+
+    stopBlocking();
+
+  }, BLOCK_DURATION);
+
+
+  /*
+  Caso NÃO acerte nenhuma bola,
+  o próximo clique só será liberado
+  após 1 segundo.
+  */
+
+  cooldownTimeout = setTimeout(() => {
+
+    inputLocked = false;
+
+  }, TOTAL_COOLDOWN);
+
+}
+
+
+/* ============================================================
+   TERMINA BLOQUEIO
+============================================================ */
+
+function stopBlocking() {
+
+  blocking = false;
+
+  player.classList.remove("blocking");
+  shield.classList.remove("active");
+
+  blockBar.style.width = "0%";
+
+}
+
+
+/* ============================================================
+   DEFESA BEM-SUCEDIDA
+============================================================ */
+
+function successfulBlock() {
+
+  /*
+  Para o ataque atual e inicia
+  o retorno animado da bola.
+  */
+
+  ballMoving = false;
+  ballReturning = true;
+
+
+  /*
+  Calcula tempo desde que
+  a bola começou a atacar.
+  */
+
+  const reactionTime =
+    performance.now() - attackStartTime;
+
+
+  if (
+    bestReaction === null ||
+    reactionTime < bestReaction
+  ) {
+
+    bestReaction = reactionTime;
+
+    reactionElement.textContent =
+      Math.round(bestReaction) + "ms";
+
+  }
+
+
+  /*
+  Pontuação
+  */
+
+  score++;
+
+  scoreElement.textContent = score;
+
+
+  /*
+  Aumenta velocidade.
+  */
+
+  speedMultiplier += SPEED_INCREASE;
+
+  speedElement.textContent =
+    speedMultiplier.toFixed(2) + "x";
+
+
+  showMessage("BLOQUEADO", "success");
+
+
+  /*
+  Como o bloqueio acertou,
+  libera outro clique imediatamente.
+  */
+
+  clearTimeout(blockEndTimeout);
+  clearTimeout(cooldownTimeout);
+
+
+  blocking = false;
+  inputLocked = false;
+
+
+  player.classList.remove("blocking");
+  shield.classList.remove("active");
+
+  blockBar.style.width = "0%";
+
+}
+
+/* ============================================================
+   MORTE
+============================================================ */
+
+function playerHit() {
+
+  gameRunning = false;
+
+  ballMoving = false;
+
+  clearTimeout(attackTimeout);
+  clearTimeout(blockEndTimeout);
+  clearTimeout(cooldownTimeout);
+
+  stopBlocking();
+
+
+  showMessage("ATINGIDO", "fail");
+
+
+  setTimeout(() => {
+
+    finalScore.textContent = score;
+
+    finalSpeed.textContent =
+      speedMultiplier.toFixed(2) + "x";
+
+    gameOverScreen.style.display = "flex";
+
+  }, 350);
+
+}
+
+
+/* ============================================================
+   FEEDBACK
+============================================================ */
+
+let messageTimeout;
+
+function showMessage(text, type) {
+
+  clearTimeout(messageTimeout);
+
+  message.textContent = text;
+
+  message.className = type;
+
+  message.style.opacity = "1";
+
+
+  messageTimeout = setTimeout(() => {
+
+    message.style.opacity = "0";
+
+  }, 350);
+
+}
+
+
+/* ============================================================
+   GAME LOOP
+============================================================ */
+
+function gameLoop(currentTime) {
+
+  const deltaTime =
+    (currentTime - lastFrame) / 1000;
+
+  lastFrame = currentTime;
+
+
+  if (gameRunning) {
+
+
+    /* ===============================
+       MOVIMENTO DA BOLA
+    =============================== */
+
+    if (ballMoving) {
+
+      const currentSpeed =
+        INITIAL_SPEED * speedMultiplier;
+
+      ballY += currentSpeed * deltaTime;
+
+      updateBallPosition();
+
+
+      const playerCenterY =
+        getPlayerCenterY();
+
+      const distance =
+        Math.abs(ballY - playerCenterY);
+
+
+      /*
+      Detecta contato bola/player.
+      */
+
+      if (distance <= getCollisionDistance()) {
+
+        if (blocking) {
+
+          successfulBlock();
+
+        } else {
+
+          playerHit();
+
+        }
+
+      }
+
+    }
+/* ===============================
+   RETORNO DA BOLA
+================================ */
+
+if (ballReturning) {
+
+  /*
+  Velocidade de retorno.
+
+  1.35 deixa o rebote um pouco
+  mais rápido que o ataque.
+  */
+
+  const returnSpeed =
+    INITIAL_SPEED * speedMultiplier * 1.35;
+
+
+  ballY -= returnSpeed * deltaTime;
+
+  updateBallPosition();
+
+
+  /*
+  Chegou novamente na origem.
+  */
+
+  if (ballY <= BALL_START_Y) {
+
+    ballY = BALL_START_Y;
+
+    updateBallPosition();
+
+    ballReturning = false;
+
+
+    /*
+    Agora sim começa o tempo
+    aleatório para o próximo ataque.
+    */
+
+    prepareAttack();
+
+  }
+
+}
+
+
+    /* ===============================
+       BARRA DE BLOQUEIO
+    =============================== */
+
+    if (blocking) {
+
+      const elapsed =
+        performance.now() - blockStartTime;
+
+      const percentage =
+        100 - (elapsed / BLOCK_DURATION) * 100;
+
+      blockBar.style.width =
+        Math.max(0, percentage) + "%";
+
+    }
+
+  }
+
+
+  requestAnimationFrame(gameLoop);
+
+}
+
+
+/* ============================================================
+   INPUT
+============================================================ */
+
+/*
+Clique esquerdo.
+*/
+
+document.addEventListener("mousedown", (event) => {
+
+  if (event.button !== 0) return;
+
+  if (
+    event.target === restartButton
+  ) return;
+
+  tryBlock();
+
+});
+
+
+/*
+Tecla E.
+*/
+
+document.addEventListener("keydown", (event) => {
+
+  if (event.code !== "KeyE") return;
+
+  /*
+  Impede o Windows/navegador de repetir a tecla
+  enquanto ela estiver segurada.
+  */
+
+  if (event.repeat) return;
+
+  tryBlock();
+
+});
+
+
+/* ============================================================
+   REINICIAR
+============================================================ */
+
+function restartGame() {
+
+  clearTimeout(attackTimeout);
+  clearTimeout(blockEndTimeout);
+  clearTimeout(cooldownTimeout);
+
+
+  score = 0;
+
+  speedMultiplier = 1;
+
+  bestReaction = null;
+
+  ballY = BALL_START_Y;
+
+  ballReturning = false;
+
+  ballMoving = false;
+
+  blocking = false;
+
+  inputLocked = false;
+
+  gameRunning = true;
+
+
+  scoreElement.textContent = "0";
+
+  speedElement.textContent = "1.00x";
+
+  reactionElement.textContent = "---";
+
+
+  gameOverScreen.style.display = "none";
+
+
+  player.classList.remove("blocking");
+
+  shield.classList.remove("active");
+
+  blockBar.style.width = "0%";
+
+
+  updateBallPosition();
+
+  prepareAttack();
+
+}
+
+
+restartButton.addEventListener("click", (event) => {
+
+  event.stopPropagation();
+
+  restartGame();
+
+});
+
+
+/* ============================================================
+   INICIAR
+============================================================ */
+
+updateBallPosition();
+
+prepareAttack();
+
+requestAnimationFrame(gameLoop);
+
+</script>
+
+</body>
+</html>
